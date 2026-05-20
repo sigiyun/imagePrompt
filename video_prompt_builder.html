@@ -1343,6 +1343,9 @@
       </div>
 
       <div id="t2vCards" class="cards-grid"></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+        <button id="t2vNextBtn" class="primary-btn hidden" type="button" style="min-width:140px;">다음 단계로 →</button>
+      </div>
     </section>
 
     <section id="t2vResultScreen" class="screen hidden">
@@ -2524,7 +2527,7 @@ ${note || "(none)"}`.trim();
       state.currentView = "t2v-step";
       t2vStepScreen.classList.remove("hidden");
       t2vStepTitle.textContent = step.title;
-      t2vStepCopy.textContent = `${step.copy} 눈에 들어오는 카드를 누르면 바로 다음 단계로 넘어갑니다. 딱 맞는 카드가 없을 때만 직접 적기를 쓰면 돼요.`;
+      t2vStepCopy.textContent = `${step.copy} 카드를 눌러 선택하고, 다 고른 뒤 다음 버튼을 누르세요. 중복 선택 가능합니다.`;
       t2vStepBadge.textContent = `STEP ${state.stepIndex + 1}`;
 
       const directCard = `
@@ -2556,7 +2559,13 @@ ${note || "(none)"}`.trim();
 
       t2vCards.innerHTML = directCard + optionCards;
 
+      const existingSel = state.selections[step.key];
+      const existingArr = Array.isArray(existingSel) ? existingSel : [];
+      const nextBtn = document.getElementById("t2vNextBtn");
+      if (nextBtn) nextBtn.classList.toggle("hidden", existingArr.length === 0);
+
       t2vCards.querySelectorAll("[data-option]").forEach((button) => {
+        if (existingArr.some(s => s.key === button.dataset.option)) button.classList.add("active");
         button.addEventListener("click", () => {
           const selected = activeOptions.find((option) => option.key === button.dataset.option);
           selectPresetOption(step, selected);
@@ -2570,15 +2579,22 @@ ${note || "(none)"}`.trim();
 
     function selectPresetOption(step, option) {
       if (!step || !option) return;
-      state.selections[step.key] = {
-        key: option.key,
-        label: option.title,
-        desc: option.desc,
-        brief: option.brief,
-        detail: "",
-        manual: false
-      };
-      moveNext();
+      const newItem = { key: option.key, label: option.title, desc: option.desc, brief: option.brief, detail: "", manual: false };
+      const current = state.selections[step.key];
+      const arr = Array.isArray(current) ? [...current] : [];
+      const idx = arr.findIndex(s => s.key === option.key);
+      if (idx >= 0) {
+        arr.splice(idx, 1);
+      } else {
+        arr.push(newItem);
+      }
+      state.selections[step.key] = arr;
+
+      document.querySelectorAll("#t2vCards [data-option]").forEach(btn => {
+        btn.classList.toggle("active", arr.some(s => s.key === btn.dataset.option));
+      });
+      const nextBtn = document.getElementById("t2vNextBtn");
+      if (nextBtn) nextBtn.classList.toggle("hidden", arr.length === 0);
     }
 
     function moveNext() {
@@ -2593,23 +2609,37 @@ ${note || "(none)"}`.trim();
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
+    function getSelBrief(key) {
+      const sel = state.selections[key];
+      if (!sel) return "";
+      if (Array.isArray(sel)) return sel.map(s => s.brief || s.label).join(", ");
+      return sel.brief || "";
+    }
+    function getSelDetail(key) {
+      const sel = state.selections[key];
+      if (!sel) return "";
+      if (Array.isArray(sel)) return sel.map(s => s.detail).filter(Boolean).join(", ");
+      return sel.detail || "";
+    }
+
     function buildStructuredBrief() {
-      const lines = [
-        `Video type: ${state.selections.subject?.brief || ""}`,
-        state.selections.subject?.detail ? `Video type user detail: ${state.selections.subject.detail}` : "",
-        `Primary focus: ${state.selections.focus?.brief || ""}`,
-        state.selections.focus?.detail ? `Primary focus user detail: ${state.selections.focus.detail}` : "",
-        `Shot structure: ${state.selections.structure?.brief || ""}`,
-        state.selections.structure?.detail ? `Shot structure user detail: ${state.selections.structure.detail}` : "",
-        `Camera plan: ${state.selections.camera?.brief || ""}`,
-        state.selections.camera?.detail ? `Camera plan user detail: ${state.selections.camera.detail}` : "",
-        `Primary motion: ${state.selections.motion?.brief || ""}`,
-        state.selections.motion?.detail ? `Primary motion user detail: ${state.selections.motion.detail}` : "",
-        `Pacing and rhythm: ${state.selections.tempo?.brief || ""}`,
-        state.selections.tempo?.detail ? `Pacing and rhythm user detail: ${state.selections.tempo.detail}` : "",
-        `Tone and style: ${state.selections.tone?.brief || ""}`,
-        state.selections.tone?.detail ? `Tone and style user detail: ${state.selections.tone.detail}` : ""
-      ].filter(Boolean);
+      const keys = [
+        ["subject",   "Video type"],
+        ["focus",     "Primary focus"],
+        ["structure", "Shot structure"],
+        ["camera",    "Camera plan"],
+        ["motion",    "Primary motion"],
+        ["tempo",     "Pacing and rhythm"],
+        ["tone",      "Tone and style"]
+      ];
+      const lines = keys.flatMap(([key, label]) => {
+        const brief = getSelBrief(key);
+        const detail = getSelDetail(key);
+        return [
+          brief ? `${label}: ${brief}` : "",
+          detail ? `${label} user detail: ${detail}` : ""
+        ];
+      }).filter(Boolean);
 
       return lines.join("\n");
     }
@@ -2620,11 +2650,17 @@ ${note || "(none)"}`.trim();
       t2vResultScreen.classList.remove("hidden");
       t2vSummary.innerHTML = t2vSteps.map((step) => {
         const selected = state.selections[step.key];
+        const labelText = Array.isArray(selected)
+          ? (selected.map(s => s.label).join(", ") || "-")
+          : (selected ? selected.label : "-");
+        const detailText = Array.isArray(selected)
+          ? selected.map(s => s.detail).filter(Boolean).join(", ")
+          : (selected?.detail || "");
         return `
           <div class="summary-item">
             <strong>${step.label}</strong>
-            <span>${selected ? selected.label : "-"}</span>
-            ${selected?.detail ? `<p class="helper" style="margin-top:8px;">${selected.detail}</p>` : ""}
+            <span>${labelText}</span>
+            ${detailText ? `<p class="helper" style="margin-top:8px;">${detailText}</p>` : ""}
           </div>
         `;
       }).join("");
@@ -2818,6 +2854,14 @@ ${note || "(none)"}`.trim();
     copyI2VPromptBtn.addEventListener("click", async () => {
       const prompt = buildUniversalI2VPrompt();
       await copyText(prompt, i2vCopyState, "상담 지시문을 복사했어요. 이제 LLM에 이미지와 함께 붙여넣으면, 이미지 분석부터 편하게 시작할 수 있어요.");
+    });
+
+    document.getElementById("t2vNextBtn").addEventListener("click", () => {
+      const step = t2vSteps[state.stepIndex];
+      if (!step) return;
+      const sel = state.selections[step.key];
+      if (!Array.isArray(sel) || sel.length === 0) return;
+      moveNext();
     });
 
     resetT2VBtn.addEventListener("click", () => showChooser("push"));

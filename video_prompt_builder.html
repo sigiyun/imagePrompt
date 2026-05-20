@@ -576,6 +576,32 @@
       box-shadow: 0 28px 64px rgba(0, 0, 0, 0.32);
     }
 
+    .option-card.active {
+      transform: translateY(-4px);
+      border-color: #4ade80;
+      box-shadow: 0 0 0 2px #4ade80, 0 28px 64px rgba(0, 0, 0, 0.32);
+      overflow: visible;
+    }
+
+    .option-card.active::after {
+      content: "✓";
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      width: 26px;
+      height: 26px;
+      background: #4ade80;
+      color: #000;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 800;
+      z-index: 10;
+      pointer-events: none;
+    }
+
     .choice-top,
     .option-top,
     .section-head {

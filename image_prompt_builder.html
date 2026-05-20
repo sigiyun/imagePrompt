@@ -1509,7 +1509,10 @@
       <div id="mainOptions" class="option-grid"></div>
       <div class="status-row">
         <div id="stepStatus" class="status"></div>
-        <div id="selectionHint" class="hint">카드를 누르면 바로 다음 단계로 넘어갑니다.</div>
+        <div id="selectionHint" class="hint">카드를 눌러 선택하고, 선택 완료 후 다음 버튼을 누르세요.</div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+        <button id="multiNextBtn" class="primary-btn hidden" type="button" style="min-width:140px;">다음 단계로 →</button>
       </div>
     </section>
 
@@ -5096,10 +5099,7 @@
         const resolvedOptions = getResolvedOptions(step);
         if (resolvedOptions.length !== 1) break;
 
-        state.selections[step.key] = {
-          ...resolvedOptions[0],
-          auto: true
-        };
+        state.selections[step.key] = [{ ...resolvedOptions[0], auto: true }];
         advanced = true;
 
         if (state.stepIndex >= state.currentFlow.length - 1) {
@@ -5127,9 +5127,9 @@
         const selected = state.selections[step.key];
         const resolvedOptions = getResolvedOptions(step);
         const isAutoResolved =
-          !!selected?.auto &&
-          resolvedOptions.length === 1 &&
-          selected.key === resolvedOptions[0].key;
+          Array.isArray(selected)
+            ? selected.length === 1 && !!selected[0]?.auto && resolvedOptions.length === 1 && selected[0].key === resolvedOptions[0].key
+            : (!!selected?.auto && resolvedOptions.length === 1 && selected?.key === resolvedOptions[0].key);
 
         if (!isAutoResolved) {
           visibleIndex += 1;
@@ -5202,15 +5202,19 @@
     function getStepValue(step) {
       const selected = state.selections[step.key];
       if (!selected) return "선택 없음";
+      if (Array.isArray(selected)) {
+        return selected.map(s => s.manual || s.title).join(", ") || "선택 없음";
+      }
       return selected.manual || selected.title;
     }
 
     function getPromptValue(step) {
       const selected = state.selections[step.key];
       if (!selected) return "";
-      if (selected.manual) {
-        return selected.manual;
+      if (Array.isArray(selected)) {
+        return selected.map(s => s.manual ? s.manual : `${s.title} - ${s.desc}`).join(" / ");
       }
+      if (selected.manual) return selected.manual;
       return `${selected.title} - ${selected.desc}`;
     }
 
@@ -5229,10 +5233,11 @@
         .forEach((step) => {
           const selectedValue = state.selections[step.key];
           if (!selectedValue) return;
-          items.push({
-            label: step.summaryLabel,
-            value: selectedValue.manual || selectedValue.title
-          });
+          const displayValue = Array.isArray(selectedValue)
+            ? selectedValue.map(s => s.manual || s.title).join(", ")
+            : (selectedValue.manual || selectedValue.title);
+          if (!displayValue) return;
+          items.push({ label: step.summaryLabel, value: displayValue });
         });
 
       if (!items.length) {
@@ -5280,8 +5285,13 @@
       const resolvedOptions = getResolvedOptions(step);
       const options = [DIRECT_OPTION, ...resolvedOptions];
 
+      const hasMultiSel = Array.isArray(selectedOption) && selectedOption.length > 0;
+      byId("multiNextBtn").classList.toggle("hidden", !hasMultiSel || step.key === "subject");
+
       byId("mainOptions").innerHTML = options.map((option) => {
-        const isActive = selectedOption && !selectedOption.manual && selectedOption.key === option.key;
+        const isActive = Array.isArray(selectedOption)
+          ? selectedOption.some(s => s.key === option.key)
+          : (selectedOption && !selectedOption.manual && selectedOption.key === option.key);
         const cardClass = option.key === "__direct__" ? "direct-card" : "option-card";
         return `
           <button class="${cardClass}${isActive ? " active" : ""}" type="button" data-step="${step.key}" data-key="${option.key}" style="${toneStyle(option)}">
@@ -5467,7 +5477,28 @@
         }
 
         clearSelectionsAfter(step.key);
-        state.selections[step.key] = option;
+
+        const current = state.selections[step.key];
+        const arr = Array.isArray(current) ? [...current] : [];
+        const idx = arr.findIndex(s => s.key === option.key);
+        if (idx >= 0) {
+          arr.splice(idx, 1);
+        } else {
+          arr.push(option);
+        }
+        state.selections[step.key] = arr;
+
+        byId("mainOptions").querySelectorAll(".option-card").forEach(card => {
+          card.classList.toggle("active", arr.some(s => s.key === card.dataset.key));
+        });
+        byId("multiNextBtn").classList.toggle("hidden", arr.length === 0);
+      });
+
+      byId("multiNextBtn").addEventListener("click", () => {
+        const step = getCurrentStep();
+        if (!step) return;
+        const sel = state.selections[step.key];
+        if (!Array.isArray(sel) || sel.length === 0) return;
         goNext();
       });
 

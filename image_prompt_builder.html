@@ -1695,6 +1695,7 @@
     const ENHANCED_SYSTEM_PROMPT = window.ENHANCED_SYSTEM_PROMPT || "";
 
     const STEP_CONFLICTS = {
+      // 1. 분위기 관련 상반 조합
       mood: [
         ["mood-bright", "mood-dramatic"],
         ["mood-bright", "mood-cinematic"],
@@ -1709,6 +1710,7 @@
         ["trust-bold", "trust-soft"],
         ["trust-bold", "trust-calm"],
       ],
+      // 2. 구도 관련 상반 조합
       composition: [
         ["comp-close", "comp-wide"],
         ["comp-symmetry", "comp-asymmetry"],
@@ -1716,12 +1718,15 @@
         ["poster-left-space", "poster-right-space"],
         ["land-panorama", "land-detail"],
       ],
+      // 3. 실내 공간 빛 관련 상반 조합
       light: [
         ["space-light-morning", "space-light-sunset"],
         ["space-light-morning", "space-light-night"],
         ["space-light-noon", "space-light-sunset"],
         ["space-light-noon", "space-light-night"],
+        ["space-light-soft", "space-light-contrast"],
       ],
+      // 4. 건축/풍경 시간대 관련 상반 조합
       time: [
         ["arch-time-morning", "arch-time-sunset"],
         ["arch-time-morning", "arch-time-night"],
@@ -1731,18 +1736,56 @@
         ["land-time-morning", "land-time-night"],
         ["land-time-noon", "land-time-sunset"],
         ["land-time-noon", "land-time-night"],
+        ["land-time-sunrise", "land-time-sunset"],
+        ["land-time-sunrise", "land-time-night"],
       ],
+      // 5. 인물 성별/특성 상반 조합 (Step 2 인원 구성 내)
+      people: [
+        ["people-female", "people-male"],
+        ["people-female", "people-neutral"],
+        ["people-male", "people-neutral"],
+      ],
+      // 6. 패션/포트레이트 의상 스타일 상반 조합
+      style: [
+        ["style-casual", "style-formal"],
+        ["group-style-casual", "group-style-formal"],
+        ["fashion-tone-natural", "fashion-tone-luxury"],
+      ],
+      // 7. 시선 및 표정 상반 조합
+      expression: [
+        ["gaze-camera", "gaze-away"],
+        ["gaze-neutral", "gaze-laugh"],
+        ["gaze-smile", "gaze-neutral"],
+      ],
+      // 8. [Cross-step] 풍경 종류 vs 시간대/날씨 간의 상호 인과 관계 모순 조합
+      landscapeCross: [
+        ["land-night", "land-time-morning"],
+        ["land-night", "land-time-noon"],
+        ["land-night", "land-time-sunrise"],
+      ],
+      // 9. [Cross-step] 커플 여행/데이트 vs 아이 관련 포즈 상호 인과 관계 모순 조합
+      groupCross: [
+        ["group-couple", "group-pose-holdchild"],
+      ]
     };
 
-    function getConflictingKeys(stepKey, arr) {
-      const pairs = STEP_CONFLICTS[stepKey] || [];
-      const selected = new Set(arr.map(s => s.key));
+    function getGlobalConflictingKeys() {
+      const allSelected = new Set();
+      Object.entries(state.selections).forEach(([sKey, val]) => {
+        const arr = Array.isArray(val) ? val : (val ? [val] : []);
+        arr.forEach(item => {
+          if (item && item.key) allSelected.add(item.key);
+        });
+      });
+
       const conflicting = new Set();
-      pairs.forEach(([a, b]) => {
-        if (selected.has(a) && selected.has(b)) {
-          conflicting.add(a);
-          conflicting.add(b);
-        }
+      Object.values(STEP_CONFLICTS).forEach(pairs => {
+        pairs.forEach(([a, b]) => {
+          if (allSelected.has(a) && allSelected.has(b)) {
+            conflicting.add(a);
+            conflicting.add(b);
+          }
+        });
       });
       return conflicting;
     }
@@ -5409,9 +5452,14 @@
       const hasMultiSel = Array.isArray(selectedOption) && selectedOption.length > 0;
       byId("multiNextBtn").classList.toggle("hidden", !hasMultiSel || step.key === "subject");
 
-      const selArr = Array.isArray(selectedOption) ? selectedOption : [];
-      const initConflicts = getConflictingKeys(step.key, selArr);
-      byId("conflictWarn").classList.add("hidden");
+      const initConflicts = getGlobalConflictingKeys();
+      const hasConflictsInOptions = options.some(opt => initConflicts.has(opt.key));
+      if (hasConflictsInOptions) {
+        byId("conflictWarn").textContent = "⚠ 선택한 옵션 중 서로 상반되는 조합이 있어요. 오렌지 카드를 확인하고 하나를 해제해 보세요.";
+        byId("conflictWarn").classList.remove("hidden");
+      } else {
+        byId("conflictWarn").classList.add("hidden");
+      }
 
       byId("mainOptions").innerHTML = options.map((option) => {
         const isActive = Array.isArray(selectedOption)
@@ -5615,7 +5663,7 @@
         }
         state.selections[step.key] = arr;
 
-        const conflicts = getConflictingKeys(step.key, arr);
+        const conflicts = getGlobalConflictingKeys();
         byId("mainOptions").querySelectorAll(".option-card").forEach(card => {
           const isActive = arr.some(s => s.key === card.dataset.key);
           const isConflict = isActive && conflicts.has(card.dataset.key);
@@ -5623,7 +5671,10 @@
           card.classList.toggle("conflict", isConflict);
         });
         const warnEl = byId("conflictWarn");
-        if (conflicts.size > 0) {
+        const hasConflictsInOptions = conflicts.size > 0 && Array.from(conflicts).some(cKey => 
+          arr.some(s => s.key === cKey) || byId("mainOptions").querySelector(`[data-key="${cKey}"]`)
+        );
+        if (hasConflictsInOptions) {
           warnEl.textContent = "⚠ 선택한 옵션 중 서로 상반되는 조합이 있어요. 오렌지 카드를 확인하고 하나를 해제해 보세요.";
           warnEl.classList.remove("hidden");
         } else {

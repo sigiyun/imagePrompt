@@ -1709,6 +1709,12 @@
         ["mood-vintage", "mood-future"],
         ["trust-bold", "trust-soft"],
         ["trust-bold", "trust-calm"],
+        // 신규 추가
+        ["feel-healing", "feel-active"],
+        ["feel-healing", "feel-luxury"],
+        ["feel-healing", "feel-proud"],
+        ["tone-active", "tone-calm"],
+        ["tone-active", "tone-luxury"]
       ],
       // 2. 구도 관련 상반 조합
       composition: [
@@ -1717,13 +1723,18 @@
         ["comp-top", "comp-pov"],
         ["poster-left-space", "poster-right-space"],
         ["land-panorama", "land-detail"],
+        // 신규 추가 (텍스트/여백 위치 상반)
+        ["text-left", "text-right"],
+        ["text-top", "text-bottom"]
       ],
       // 3. 실내 공간 빛 관련 상반 조합
       light: [
         ["space-light-morning", "space-light-sunset"],
         ["space-light-morning", "space-light-night"],
+        ["space-light-morning", "space-light-lamp"], // 오전 자연광 vs 무드등/간접조명
         ["space-light-noon", "space-light-sunset"],
         ["space-light-noon", "space-light-night"],
+        ["space-light-noon", "space-light-lamp"], // 환하고 깨끗한 채광 vs 무드등
         ["space-light-soft", "space-light-contrast"],
       ],
       // 4. 건축/풍경 시간대 관련 상반 조합
@@ -1744,6 +1755,12 @@
         ["people-female", "people-male"],
         ["people-female", "people-neutral"],
         ["people-male", "people-neutral"],
+        // 썸네일 등장인물 구성 상반
+        ["thumb-one-female", "thumb-one-male"],
+        ["thumb-one-female", "thumb-two-people"],
+        ["thumb-one-male", "thumb-two-people"],
+        ["thumb-one-female", "thumb-group"],
+        ["thumb-one-male", "thumb-group"]
       ],
       // 6. 패션/포트레이트 의상 스타일 상반 조합
       style: [
@@ -1776,6 +1793,37 @@
         ["space-style-nordic", "space-style-black"],
         ["space-style-luxury", "space-style-industrial"],
         ["space-style-luxury", "space-style-vintage"],
+      ],
+      // 11. 음식/음료 관련 상반 조합
+      foodCross: [
+        ["food-hot", "food-cold"], // 뜨거운 김 vs 차가운 서리/얼음
+        ["food-single", "food-set"] // 단품 요리 vs 세트 한상
+      ],
+      // 12. 반려동물 포즈/행동 상반 조합
+      animalCross: [
+        ["animal-action-run", "animal-action-cuddle"], // 달리기 vs 껴안고 교감
+        ["animal-action-play", "animal-action-sleep"] // 활동적 놀이 vs 잠자기
+      ],
+      // 13. 제품 연출 및 배경 상반 조합
+      productCross: [
+        ["product-single", "product-set"],
+        ["product-single", "product-repeat"],
+        ["product-bg-white", "product-bg-natural"], // 흰색 누끼 vs 실경 자연
+        ["product-bg-white", "product-bg-texture"]
+      ],
+      // 14. 증명/프로필 사진 포즈 및 배경 상반 조합
+      profileCross: [
+        ["profile-pose-front", "profile-pose-sideseat"],
+        ["profile-bg-white", "profile-bg-office"], // 흰색 단색 vs 사무실 실경
+        ["profile-bg-white", "profile-bg-books"],
+        ["profile-bg-gray", "profile-bg-office"],
+        ["profile-bg-gray", "profile-bg-books"]
+      ],
+      // 15. 셀카/SNS 사진 포즈 및 장소 상반 조합
+      selfieCross: [
+        ["self-pose-face", "self-pose-full"], // 얼굴 초밀착 vs 전신 샷
+        ["self-set-gym", "self-set-cafe"],
+        ["self-set-gym", "self-set-room"]
       ]
     };
 

@@ -602,6 +602,46 @@
       pointer-events: none;
     }
 
+    .option-card.conflict {
+      transform: translateY(-4px);
+      border-color: #f97316;
+      box-shadow: 0 0 0 2px #f97316, 0 28px 64px rgba(0, 0, 0, 0.32);
+    }
+
+    .option-card.conflict::after {
+      content: "⚠";
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      width: 26px;
+      height: 26px;
+      background: #f97316;
+      color: #000;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 800;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .conflict-warn {
+      margin-top: 12px;
+      padding: 10px 14px;
+      background: rgba(249, 115, 22, 0.1);
+      border: 1px solid rgba(249, 115, 22, 0.35);
+      border-radius: 10px;
+      color: #f97316;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .conflict-warn.hidden {
+      display: none;
+    }
+
     .choice-top,
     .option-top,
     .section-head {
@@ -1377,6 +1417,7 @@
         <button id="t2vNextBtn" class="primary-btn hidden" type="button" style="min-width:140px;">다음 단계로 →</button>
       </div>
       <div id="t2vCards" class="cards-grid"></div>
+      <div id="conflictWarn" class="conflict-warn hidden"></div>
     </section>
 
     <section id="t2vResultScreen" class="screen hidden">
@@ -2262,6 +2303,52 @@ ${note || "(none)"}`.trim();
       pendingOption: null
     };
 
+    const STEP_CONFLICTS = {
+      tempo: [
+        ["slow", "fast"],
+        ["slow", "stop-start"],
+      ],
+      camera: [
+        ["static", "push-in"],
+        ["static", "pull-out"],
+        ["static", "pan"],
+        ["static", "follow"],
+        ["static", "orbit"],
+        ["static", "tilt-reveal"],
+        ["push-in", "pull-out"],
+      ],
+      motion: [
+        ["camera-only", "high-energy"],
+        ["camera-only", "person-action"],
+        ["expression-only", "high-energy"],
+      ],
+      structure: [
+        ["single", "two-cut"],
+        ["single", "three-cut"],
+        ["single", "multishot"],
+        ["single", "intro-outro"],
+      ],
+      tone: [
+        ["emotional", "tutorial"],
+        ["cinematic", "shortform"],
+        ["music-video", "tutorial"],
+        ["music-video", "commercial"],
+      ],
+    };
+
+    function getConflictingKeys(stepKey, arr) {
+      const pairs = STEP_CONFLICTS[stepKey] || [];
+      const selected = new Set(arr.map(s => s.key));
+      const conflicting = new Set();
+      pairs.forEach(([a, b]) => {
+        if (selected.has(a) && selected.has(b)) {
+          conflicting.add(a);
+          conflicting.add(b);
+        }
+      });
+      return conflicting;
+    }
+
     function clone(value) {
       return JSON.parse(JSON.stringify(value || {}));
     }
@@ -2595,8 +2682,15 @@ ${note || "(none)"}`.trim();
       const nextBtn = document.getElementById("t2vNextBtn");
       if (nextBtn) nextBtn.classList.toggle("hidden", existingArr.length === 0);
 
+      const warnEl = document.getElementById("conflictWarn");
+      if (warnEl) warnEl.classList.add("hidden");
+      const initConflicts = getConflictingKeys(step.key, existingArr);
+
       t2vCards.querySelectorAll("[data-option]").forEach((button) => {
-        if (existingArr.some(s => s.key === button.dataset.option)) button.classList.add("active");
+        const isActive = existingArr.some(s => s.key === button.dataset.option);
+        const isConflict = isActive && initConflicts.has(button.dataset.option);
+        if (isConflict) button.classList.add("conflict");
+        else if (isActive) button.classList.add("active");
         button.addEventListener("click", () => {
           const selected = activeOptions.find((option) => option.key === button.dataset.option);
           selectPresetOption(step, selected);
@@ -2621,9 +2715,22 @@ ${note || "(none)"}`.trim();
       }
       state.selections[step.key] = arr;
 
+      const conflicts = getConflictingKeys(step.key, arr);
       document.querySelectorAll("#t2vCards [data-option]").forEach(btn => {
-        btn.classList.toggle("active", arr.some(s => s.key === btn.dataset.option));
+        const isActive = arr.some(s => s.key === btn.dataset.option);
+        const isConflict = isActive && conflicts.has(btn.dataset.option);
+        btn.classList.toggle("active", isActive && !isConflict);
+        btn.classList.toggle("conflict", isConflict);
       });
+      const warnEl = document.getElementById("conflictWarn");
+      if (warnEl) {
+        if (conflicts.size > 0) {
+          warnEl.textContent = "⚠ 선택한 옵션 중 서로 상반되는 조합이 있어요. 오렌지 카드를 확인하고 하나를 해제해 보세요.";
+          warnEl.classList.remove("hidden");
+        } else {
+          warnEl.classList.add("hidden");
+        }
+      }
       const nextBtn = document.getElementById("t2vNextBtn");
       if (nextBtn) nextBtn.classList.toggle("hidden", arr.length === 0);
     }

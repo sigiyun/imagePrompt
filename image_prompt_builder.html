@@ -486,6 +486,48 @@
       pointer-events: none;
     }
 
+    .option-card.conflict,
+    .direct-card.conflict {
+      transform: translateY(-4px);
+      border-color: #f97316;
+      box-shadow: 0 0 0 2px #f97316, 0 28px 64px rgba(0, 0, 0, 0.32);
+    }
+
+    .option-card.conflict::after,
+    .direct-card.conflict::after {
+      content: "⚠";
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      width: 26px;
+      height: 26px;
+      background: #f97316;
+      color: #000;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 800;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .conflict-warn {
+      margin-top: 12px;
+      padding: 10px 14px;
+      background: rgba(249, 115, 22, 0.1);
+      border: 1px solid rgba(249, 115, 22, 0.35);
+      border-radius: 10px;
+      color: #f97316;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .conflict-warn.hidden {
+      display: none;
+    }
+
     .thumb {
       position: relative;
       height: 182px;
@@ -1535,6 +1577,7 @@
         <button id="multiNextBtn" class="primary-btn hidden" type="button" style="min-width:140px;">다음 단계로 →</button>
       </div>
       <div id="mainOptions" class="option-grid"></div>
+      <div id="conflictWarn" class="conflict-warn hidden"></div>
       <div class="status-row">
         <div id="stepStatus" class="status"></div>
         <div id="selectionHint" class="hint">카드를 눌러 선택하고, 선택 완료 후 다음 버튼을 누르세요.</div>
@@ -1650,6 +1693,43 @@
     // 프롬프트는 image_prompts.js 에서 window.DEFAULT_SYSTEM_PROMPT / window.ENHANCED_SYSTEM_PROMPT 로 주입됨
     const DEFAULT_SYSTEM_PROMPT = window.DEFAULT_SYSTEM_PROMPT || "";
     const ENHANCED_SYSTEM_PROMPT = window.ENHANCED_SYSTEM_PROMPT || "";
+
+    const STEP_CONFLICTS = {
+      mood: [
+        ["mood-bright", "mood-dramatic"],
+        ["mood-bright", "mood-cinematic"],
+        ["mood-bright", "mood-future"],
+        ["mood-warm", "mood-future"],
+        ["mood-warm", "mood-dramatic"],
+        ["mood-calm", "mood-dramatic"],
+        ["mood-playful", "mood-cinematic"],
+        ["mood-playful", "mood-dramatic"],
+        ["mood-playful", "mood-luxury"],
+        ["mood-vintage", "mood-future"],
+        ["trust-bold", "trust-soft"],
+        ["trust-bold", "trust-calm"],
+      ],
+      composition: [
+        ["comp-close", "comp-wide"],
+        ["comp-symmetry", "comp-asymmetry"],
+        ["comp-top", "comp-pov"],
+        ["poster-left-space", "poster-right-space"],
+        ["land-panorama", "land-detail"],
+      ],
+    };
+
+    function getConflictingKeys(stepKey, arr) {
+      const pairs = STEP_CONFLICTS[stepKey] || [];
+      const selected = new Set(arr.map(s => s.key));
+      const conflicting = new Set();
+      pairs.forEach(([a, b]) => {
+        if (selected.has(a) && selected.has(b)) {
+          conflicting.add(a);
+          conflicting.add(b);
+        }
+      });
+      return conflicting;
+    }
 
     function clone(value) {
       return JSON.parse(JSON.stringify(value));
@@ -5313,13 +5393,19 @@
       const hasMultiSel = Array.isArray(selectedOption) && selectedOption.length > 0;
       byId("multiNextBtn").classList.toggle("hidden", !hasMultiSel || step.key === "subject");
 
+      const selArr = Array.isArray(selectedOption) ? selectedOption : [];
+      const initConflicts = getConflictingKeys(step.key, selArr);
+      byId("conflictWarn").classList.add("hidden");
+
       byId("mainOptions").innerHTML = options.map((option) => {
         const isActive = Array.isArray(selectedOption)
           ? selectedOption.some(s => s.key === option.key)
           : (selectedOption && !selectedOption.manual && selectedOption.key === option.key);
+        const isConflict = isActive && initConflicts.has(option.key);
         const cardClass = option.key === "__direct__" ? "direct-card" : "option-card";
+        const stateClass = isConflict ? " conflict" : (isActive ? " active" : "");
         return `
-          <button class="${cardClass}${isActive ? " active" : ""}" type="button" data-step="${step.key}" data-key="${option.key}" style="${toneStyle(option)}">
+          <button class="${cardClass}${stateClass}" type="button" data-step="${step.key}" data-key="${option.key}" style="${toneStyle(option)}">
             ${renderCardThumb(step, option)}
             <strong>${option.title}</strong>
             <span>${option.desc}</span>
@@ -5513,9 +5599,20 @@
         }
         state.selections[step.key] = arr;
 
+        const conflicts = getConflictingKeys(step.key, arr);
         byId("mainOptions").querySelectorAll(".option-card").forEach(card => {
-          card.classList.toggle("active", arr.some(s => s.key === card.dataset.key));
+          const isActive = arr.some(s => s.key === card.dataset.key);
+          const isConflict = isActive && conflicts.has(card.dataset.key);
+          card.classList.toggle("active", isActive && !isConflict);
+          card.classList.toggle("conflict", isConflict);
         });
+        const warnEl = byId("conflictWarn");
+        if (conflicts.size > 0) {
+          warnEl.textContent = "⚠ 선택한 옵션 중 서로 상반되는 조합이 있어요. 오렌지 카드를 확인하고 하나를 해제해 보세요.";
+          warnEl.classList.remove("hidden");
+        } else {
+          warnEl.classList.add("hidden");
+        }
         byId("multiNextBtn").classList.toggle("hidden", arr.length === 0);
       });
 
